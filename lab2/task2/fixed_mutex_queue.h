@@ -11,14 +11,18 @@
 template <typename T>
 class FixedMutexQueue: public IQueue<T> {
 private:
+    size_t capacity;
     std::vector<T> arr;
-    std::mutex mutex_pop, mutex_push, mutex_queue;
-    std::condition_variable cond_var_push, cond_var_pop;
-    size_t head, tail, size;
+    std::mutex mutex_queue;
+    std::condition_variable cond_var;
+    alignas(128) size_t head;
+    alignas(128) size_t tail;
+    alignas(128) size_t size;
 
 public:
     FixedMutexQueue(size_t s) : head(0), tail(0), size(0) {
         arr.resize(s);
+        capacity = s;
     }
     void push(T v);
     bool pop(T &v);
@@ -26,29 +30,23 @@ public:
 
 template <typename T>
 void FixedMutexQueue<T>::push(T v) {
-    std::unique_lock<std::mutex> lock(mutex_push);
-    cond_var_push.wait(lock, [&] { return size < arr.size(); });
+    std::unique_lock<std::mutex> lock(mutex_queue);
+    cond_var.wait(lock, [&] { return size < capacity; });
     arr[tail] = v;
-    tail = (tail + 1) % arr.size();
-    {
-        std::lock_guard<std::mutex> lock_q(mutex_queue);
-        ++size;
-    }
-    cond_var_pop.notify_one();
+    tail = (tail + 1) % capacity;
+    ++size;
+    cond_var.notify_one();
 }
 
 template <typename T>
 bool FixedMutexQueue<T>::pop(T &v) {
-    std::unique_lock<std::mutex> lock(mutex_pop);
-    cond_var_push.notify_all();
-    if (cond_var_pop.wait_for(lock, std::chrono::milliseconds(1), [&]{return size > 0;})) {
+    std::unique_lock<std::mutex> lock(mutex_queue);
+    cond_var.notify_all();
+    if (cond_var.wait_for(lock, std::chrono::milliseconds(1), [&]{return size > 0;})) {
         v = arr[head];
-        head = (head + 1) % arr.size();
-        {
-            std::lock_guard<std::mutex> lock_q(mutex_queue);
-            --size;
-        }
-        cond_var_push.notify_one();
+        head = (head + 1) % capacity;
+        --size;
+        cond_var.notify_one();
         return true;
     }
     else

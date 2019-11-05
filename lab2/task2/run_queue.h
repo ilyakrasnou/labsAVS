@@ -12,7 +12,7 @@
 const std::vector<int> producer_num = {1, 2, 4};
 const std::vector<int> consumer_num = {1, 2, 4};
 const std::vector<size_t> queue_size = {1, 4, 16};
-const int NUM_TASK = 1 << 22;
+const int NUM_TASK = 1 << 18;
 
 template <typename T>
 void test_queue(IQueue<T> &queue, int producer_n, int consumer_n) {
@@ -21,6 +21,11 @@ void test_queue(IQueue<T> &queue, int producer_n, int consumer_n) {
     std::vector<std::thread> producers(producer_n);
     std::vector<std::thread> consumers(consumer_n);
     auto start = std::chrono::high_resolution_clock::now();
+    for (auto& thread: producers)
+        thread = std::thread([&task_num, &queue]() {
+            for (int i = 0; i < task_num; ++i)
+                queue.push(1);
+        });
     for (auto& thread: consumers)
         thread = std::thread([&sum, &queue, task_num, producer_n]() {
             T v;
@@ -28,16 +33,11 @@ void test_queue(IQueue<T> &queue, int producer_n, int consumer_n) {
                 sum += queue.pop(v);
             }
         });
-    for (auto& thread: producers)
-        thread = std::thread([&task_num, &queue]() {
-            for (int i = 0; i < task_num; ++i)
-                queue.push(1);
-        });
-    for (auto& thread: consumers) {
+    for (auto& thread: producers) {
         if (thread.joinable())
             thread.join();
     }
-    for (auto& thread: producers) {
+    for (auto& thread: consumers) {
         if (thread.joinable())
             thread.join();
     }

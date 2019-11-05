@@ -24,7 +24,7 @@ bool inc_mutex(std::vector<T>& arr, size_t& index, std::mutex& mutex, int sleep)
 
 template<typename T>
 bool inc_atomic(std::vector<T>& arr, std::atomic_size_t& index, int sleep) {
-    size_t old_index = index++;
+    size_t old_index = index.fetch_add(1);
     if (old_index >= arr.size())
         return false;
     std::this_thread::sleep_for(std::chrono::nanoseconds(sleep));
@@ -59,9 +59,13 @@ void execute_atomic(size_t num_task, int num_thread, int sleep = 0) {
             while (inc_atomic(arr, index, sleep));
         }, std::ref(arr), std::ref(index));
     }
-    for (auto& thread: threads)
+    for (auto& thread: threads) {
         if (thread.joinable())
             thread.join();
+    }
+    for (T i: arr)
+        if (i != 1)
+            std::cout << "Fuck!";
 }
 
 template <typename T>

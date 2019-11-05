@@ -3,23 +3,22 @@
 
 #include "interface_queue.h"
 #include <thread>
-#include <mutex>
 #include <vector>
 #include <atomic>
-#include <condition_variable>
 
 template <typename T>
 class FixedAtomicQueue: public IQueue<T> {
 private:
     std::vector<T> arr;
-    std::atomic_size_t head, tail, size;
-    std::mutex mutex_pop, mutex_push;
-    std::condition_variable cond_var_pop, cond_var_push;
-    std::atomic_bool free;
+    size_t capacity;
+    alignas(128) std::atomic_size_t head;
+    alignas(128) std::atomic_size_t tail;
+    std::atomic_bool is_writing;
 
 public:
-    FixedAtomicQueue(size_t s): free(true), head(0), tail(0), size(0) {
+    FixedAtomicQueue(size_t s): head(0), tail(0), is_writing(false) {
         arr.resize(s);
+        capacity = s;
     }
     bool pop(T &v);
     void push(T v);
@@ -28,53 +27,46 @@ public:
 template <typename T>
 void FixedAtomicQueue<T>::push(T v) {
     for (;;) {
-        bool required = true;
-        bool is_free = free.compare_exchange_strong(required, false);
-        while (!is_free) {
-            std::unique_lock<std::mutex> lock(mutex_push);
-            cond_var_push.wait(lock, [&]() {
-                bool b = true;
-                return free.compare_exchange_strong(b, false);
-            });
-            is_free = true;
-        }
-        if (size < arr.size())
+        size_t tail_pos = tail;
+        // Проверка на переполнение
+        if ((tail_pos + 1) % capacity == head)
+            continue;
+        // очередь пуста, просто ждем
+        T tail_value = arr[tail_pos];
+        if (tail_pos != tail)
             break;
-        else {
-            free = true;
-            cond_var_pop.notify_one();
+        // Ну не знаю я, как по-другому реализовать DCAS
+        bool smb_write = false;
+        if (is_writing.compare_exchange_strong(smb_write, true)) {
+            if (arr[tail_pos] == tail_value && tail == tail_pos) {
+                arr[tail_pos] = v;
+                tail = (tail_pos + 1) % capacity;
+                is_writing = false;
+                return;
+            }
+            is_writing = false;
         }
+
     }
-    arr[tail] = v;
-    tail = (tail + 1) % arr.size();
-    ++size;
-    free = true;
-    cond_var_pop.notify_one();
 }
 
 template <typename T>
 bool FixedAtomicQueue<T>::pop(T &v) {
-    bool result = false;
-    bool required = true;
-    bool is_free = free.compare_exchange_strong(required, false);
-    if (!is_free) {
-        std::unique_lock<std::mutex> lock(mutex_pop);
-        is_free = cond_var_pop.wait_for(lock, std::chrono::milliseconds(1), [&](){
-            bool required = true;
-            return free.compare_exchange_strong(required, false);
-        });
-    }
-    if (is_free) {
-        if (size > 0) {
-            v = arr[head];
-            head = (head + 1) % arr.size();
-            size--;
-            result = true;
+    for(;;) {
+        size_t head_pos = head;
+        // очередь пуста, подождем и выйдем
+        if (head_pos == tail) {
+            std::this_thread::sleep_for(std::chrono::nanoseconds(10));
+            head_pos = head;
+            if (head_pos == tail)
+                return false;
         }
-        free = true;
-        cond_var_push.notify_one();
+        T head_value = arr[head_pos];
+        if (head.compare_exchange_strong(head_pos, (head_pos+1) % capacity)) {
+            v = head_value;
+            return true;
+        }
     }
-    return result;
 }
 
 #endif //LAB2_FIXED_ATOMIC_QUEUE_H
