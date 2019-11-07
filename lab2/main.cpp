@@ -8,7 +8,7 @@ int main() {
     char answer;
     bool exit = false;
     while (!exit) {
-        std::cout << "1 - 1 task, 2 - 2.1, 3 - 2.2, 4 - 2.3, other - to exit ";
+        std::cout << "1 - 1 task, 2 - 2.1, 3 - 2.2, 4 - 2.3, 5 - 2.4, other - to exit ";
         std::cin >> answer;
         switch (answer) {
             case '1':
@@ -22,6 +22,9 @@ int main() {
                 break;
             case '4':
                 run_fixed_atomic_queue<uint8_t>();
+                break;
+            case '5':
+                run_lock_free_queue<uint8_t>();
                 break;
             default:
                 exit = true;
