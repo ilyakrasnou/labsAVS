@@ -17,8 +17,8 @@ private:
 
 public:
     FixedAtomicQueue(size_t s): head(0), tail(0), is_writing(false) {
-        arr.resize(s);
-        capacity = s;
+        capacity = s + 1;
+        arr.resize(capacity);
     }
     bool pop(T &v);
     void push(T v);
