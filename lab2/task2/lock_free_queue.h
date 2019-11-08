@@ -23,7 +23,8 @@ public:
 
 template <typename T>
 class LockFreeQueue: public IQueue<T> {
-    std::shared_ptr<Node<T>> head, tail;
+    alignas(128) std::shared_ptr<Node<T>> head;
+    alignas(128) std::shared_ptr<Node<T>> tail;
 public:
     LockFreeQueue (): head(new Node<T>(T())) {
         tail = std::atomic_load(&head);

@@ -31,10 +31,10 @@ void FixedAtomicQueue<T>::push(T v) {
         // Проверка на переполнение
         if ((tail_pos + 1) % capacity == head)
             continue;
-        // очередь пуста, просто ждем
         T tail_value = arr[tail_pos];
+        // проверка на правильное значение tail_value
         if (tail_pos != tail)
-            break;
+            continue;
         // Ну не знаю я, как по-другому реализовать DCAS
         bool smb_write = false;
         if (is_writing.compare_exchange_strong(smb_write, true)) {
