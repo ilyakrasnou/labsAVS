@@ -13,7 +13,7 @@
 const std::vector<int> producer_num = {1, 2, 4};
 const std::vector<int> consumer_num = {1, 2, 4};
 const std::vector<size_t> queue_size = {1, 4, 16};
-const int NUM_TASK = 1 << 20;
+const int NUM_TASK = 1 << 10;
 
 template <typename T>
 void test_queue(IQueue<T> &queue, int producer_n, int consumer_n) {
@@ -31,7 +31,9 @@ void test_queue(IQueue<T> &queue, int producer_n, int consumer_n) {
         thread = std::thread([&sum, &queue, task_num, producer_n]() {
             T v;
             while (sum.load() < producer_n * task_num) {
-                sum += queue.pop(v);
+                if (queue.pop(v)) {
+                    sum.fetch_add(v);
+                }
             }
         });
     for (auto& thread: producers) {
@@ -80,7 +82,8 @@ void run_fixed_atomic_queue() {
                 std::cout << "Result for producer_num: " << producer_n
                           << ", consumer_num: " << consumer_n
                           << ", size: " << size << std::endl;
-                FixedMutexQueue<T> q(size);
+                // std::cout << "what? " << std::endl;
+                FixedAtomicQueue<T> q(size);
                 test_queue<T>(q, producer_n, consumer_n);
             }
 }

@@ -7,18 +7,27 @@
 #include <atomic>
 
 template <typename T>
+struct SNode {
+    uint8_t is_valid = 0;
+    T value;
+
+    SNode() noexcept {value = 0; is_valid = 0;}
+    SNode(T v) noexcept { value = v; is_valid = 0; }
+};
+
+template <typename T>
 class FixedAtomicQueue: public IQueue<T> {
 private:
-    std::vector<T> arr;
+    std::atomic<SNode<T>> arr[32];
     size_t capacity;
     alignas(128) std::atomic_size_t head;
     alignas(128) std::atomic_size_t tail;
-    std::atomic_bool is_writing;
 
 public:
-    FixedAtomicQueue(size_t s): head(0), tail(0), is_writing(false) {
+    FixedAtomicQueue(size_t s): head(0), tail(0) {
         capacity = s + 1;
-        arr.resize(capacity);
+        std::cout << arr[0].is_lock_free() << std::endl;
+        std::cout << "Size: " << sizeof(arr[0]) << std::endl;
     }
     bool pop(T &v);
     void push(T v);
@@ -26,27 +35,24 @@ public:
 
 template <typename T>
 void FixedAtomicQueue<T>::push(T v) {
+    SNode<T> new_node(v);
+    new_node.is_valid = 1;
     for (;;) {
         size_t tail_pos = tail;
         // Проверка на переполнение
         if ((tail_pos + 1) % capacity == head)
             continue;
-        T tail_value = arr[tail_pos];
+        SNode<T> tail_value = arr[tail_pos];
         // проверка на правильное значение tail_value
         if (tail_pos != tail)
             continue;
-        // Ну не знаю я, как по-другому реализовать DCAS
-        bool smb_write = false;
-        if (is_writing.compare_exchange_strong(smb_write, true)) {
-            if (arr[tail_pos] == tail_value && tail == tail_pos) {
-                arr[tail_pos] = v;
-                tail = (tail_pos + 1) % capacity;
-                is_writing = false;
-                return;
-            }
-            is_writing = false;
+        // пробуем установить новое значение, в любом случае двигаем хвост
+        if (tail_value.is_valid == 0 and arr[tail_pos].compare_exchange_weak(tail_value, new_node)) {
+            tail.compare_exchange_weak(tail_pos, (tail_pos + 1) % capacity);
+            return;
+        } else {
+            tail.compare_exchange_strong(tail_pos, (tail_pos + 1) % capacity);
         }
-
     }
 }
 
@@ -61,10 +67,18 @@ bool FixedAtomicQueue<T>::pop(T &v) {
             if (head_pos == tail)
                 return false;
         }
-        T head_value = arr[head_pos];
-        if (head.compare_exchange_strong(head_pos, (head_pos+1) % capacity)) {
-            v = head_value;
+        SNode<T> head_value = arr[head_pos];
+        // проверка на правильное значение head_value
+        if (head_pos != head)
+            continue;
+        SNode<T> empty_node = SNode<T>();
+        // пытаемся заменить на пустой узел с is_valid = 0, двигаем голову
+        if (head_value.is_valid != 0 and (arr[head_pos]).compare_exchange_weak(head_value, empty_node)) {
+            head.compare_exchange_weak(head_pos, (head_pos+1) % capacity);
+            v = head_value.value;
             return true;
+        } else {
+            head.compare_exchange_weak(head_pos, (head_pos+1) % capacity);
         }
     }
 }
