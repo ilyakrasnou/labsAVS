@@ -47,8 +47,8 @@ void FixedAtomicQueue<T>::push(T v) {
         if (tail_pos != tail)
             continue;
         // пробуем установить новое значение, двигаем хвост
-        if (tail_value.is_valid == 0 and arr[tail_pos].compare_exchange_weak(tail_value, new_node)) {
-            tail.compare_exchange_weak(tail_pos, (tail_pos + 1) % capacity);
+        if (tail_value.is_valid == 0 and arr[tail_pos].compare_exchange_strong(tail_value, new_node)) {
+            tail.compare_exchange_strong(tail_pos, (tail_pos + 1) % capacity);
             return;
         } else {
             tail.compare_exchange_strong(tail_pos, (tail_pos + 1) % capacity);
@@ -70,12 +70,12 @@ bool FixedAtomicQueue<T>::pop(T &v) {
             continue;
         SNode<T> empty_node = SNode<T>();
         // пытаемся заменить на пустой узел с is_valid = 0, двигаем голову
-        if (head_value.is_valid != 0 and (arr[head_pos]).compare_exchange_weak(head_value, empty_node)) {
-            head.compare_exchange_weak(head_pos, (head_pos+1) % capacity);
+        if (head_value.is_valid != 0 and (arr[head_pos]).compare_exchange_strong(head_value, empty_node)) {
+            head.compare_exchange_strong(head_pos, (head_pos+1) % capacity);
             v = head_value.value;
             return true;
         } else {
-            head.compare_exchange_weak(head_pos, (head_pos+1) % capacity);
+            head.compare_exchange_strong(head_pos, (head_pos+1) % capacity);
         }
     }
 }

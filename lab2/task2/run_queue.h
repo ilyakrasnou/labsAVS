@@ -31,9 +31,7 @@ void test_queue(IQueue<T> &queue, int producer_n, int consumer_n) {
         thread = std::thread([&sum, &queue, task_num, producer_n]() {
             T v;
             while (sum.load() < producer_n * task_num) {
-                if (queue.pop(v)) {
-                    sum.fetch_add(v);
-                }
+                sum += queue.pop(v);
             }
         });
     for (auto& thread: producers) {
