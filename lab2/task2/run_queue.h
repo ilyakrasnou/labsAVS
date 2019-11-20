@@ -13,7 +13,7 @@
 const std::vector<int> producer_num = {1, 2, 4};
 const std::vector<int> consumer_num = {1, 2, 4};
 const std::vector<size_t> queue_size = {1, 4, 16};
-const int NUM_TASK = 1 << 10;
+const int NUM_TASK = 1 << 20;
 
 template <typename T>
 void test_queue(IQueue<T> &queue, int producer_n, int consumer_n) {
