@@ -17,7 +17,9 @@ bool inc_mutex(std::vector<T>& arr, size_t& index, std::mutex& mutex, int sleep)
         old_index = index;
         index++;
     }
-    std::this_thread::sleep_for(std::chrono::nanoseconds(sleep));
+    if (sleep) {
+        std::this_thread::sleep_for(std::chrono::nanoseconds(sleep));
+    }
     arr[old_index]++;
     return true;
 }
@@ -27,7 +29,9 @@ bool inc_atomic(std::vector<T>& arr, std::atomic_size_t& index, int sleep) {
     size_t old_index = index.fetch_add(1);
     if (old_index >= arr.size())
         return false;
-    std::this_thread::sleep_for(std::chrono::nanoseconds(sleep));
+    if (sleep) {
+        std::this_thread::sleep_for(std::chrono::nanoseconds(sleep));
+    }
     arr[old_index]++;
     return true;
 }
@@ -47,6 +51,9 @@ void execute_mutex(size_t num_el, int num_threads, int sleep = 0) {
     for (auto& thread: threads)
         if (thread.joinable())
             thread.join();
+    for (T i: arr)
+        if (i != 1)
+            std::cout << "Ooops!" << std::endl;
 }
 
 template <typename T>
@@ -65,7 +72,7 @@ void execute_atomic(size_t num_task, int num_thread, int sleep = 0) {
     }
     for (T i: arr)
         if (i != 1)
-            std::cout << "Fuck!";
+            std::cout << "Ooops!" << std::endl;
 }
 
 template <typename T>
@@ -76,11 +83,11 @@ void run_array_traversal() {
     for (auto sleep: sleeps)
         for (auto num_thread: num_threads) {
             auto start = std::chrono::high_resolution_clock::now();
-            execute_mutex<T >(num_task, num_thread, sleep);
+            execute_mutex<T>(num_task, num_thread, sleep);
             auto end = std::chrono::high_resolution_clock::now();
             auto mutex_time = std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count() * 1e-9;
             start = std::chrono::high_resolution_clock::now();
-            execute_atomic<T >(num_task, num_thread, sleep);
+            execute_atomic<T>(num_task, num_thread, sleep);
             end = std::chrono::high_resolution_clock::now();
             auto atomic_time = std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count() * 1e-9;
             std::cout << "NumThreads: " << num_thread << ", sleep: " << sleep << std::endl

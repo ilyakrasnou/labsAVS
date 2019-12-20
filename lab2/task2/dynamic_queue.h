@@ -28,14 +28,13 @@ void DynamicQueue<T>::push(T val) {
 
 template <typename T>
 bool DynamicQueue<T>::pop(T &val) {
-    mutex.lock();
+    std::lock_guard<std::mutex> lock(mutex);
     bool result = false;
     if (!queue.empty()) {
         val = queue.front();
         queue.pop();
         result = true;
     }
-    mutex.unlock();
     return result;
 }
 
